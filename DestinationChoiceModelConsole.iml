@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="DBPediaReader" />
+    <orderEntry type="module" module-name="FactualClusterer" />
+    <orderEntry type="module" module-name="FactualDownloader" />
+    <orderEntry type="module" module-name="MySqlHelper" />
+    <orderEntry type="library" name="javax.mail:mail:1.4" level="application" />
+  </component>
+</module>
