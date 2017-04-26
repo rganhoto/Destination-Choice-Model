@@ -90,7 +90,8 @@ public class Main {
             //RUBBER CLUSERS
 
             //FC_GenerateCluster.GetNearestNeighbor(mscli, 10);
-
+            //WP_dbPediaCompare.CreateSampleData(mscli);
+            WP_dbPediaCompare.CreateTestData(mscli,5000);
 
 
 
@@ -110,7 +111,6 @@ public class Main {
             //boolean GetNearPoints = false;
 
             int ArffLineNumber = 0;
-
 
 
 
@@ -259,11 +259,11 @@ public class Main {
 
 
             if (CreateSampleARFF) {
-                WP_dbPediaCompare.CompareFactualVSdbPedia(mscli);
+                WP_dbPediaCompare.CreateSampleData(mscli);
             }
 
             if (CreateTestArff) {
-
+                WP_dbPediaCompare.CreateTestData(mscli,ArffLineNumber);
             }
 
 

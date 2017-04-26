@@ -539,18 +539,19 @@ public class WP_dbPediaDownloader {
         _sb = new StringBuilder();
         _sb.append("UPDATE " + MSClient.table_prefix + "_dbpediaData DD ");
         _sb.append("INNER JOIN " + MSClient.table_prefix + "_dbpediaRawData RD ON RD.clean_name = DD.article ");
-        _sb.append("AND RD.property='<http://dbpedia.org/property/address>' ");
-        _sb.append("SET DD.address=RD.clean_value ");
+        _sb.append("AND RD.property = '<http://dbpedia.org/property/lat>' ");
+        _sb.append("SET DD.latitude=RD.clean_value ");
         _sb.append("");
         mysql.ExecuteQuery(_sb.toString());
 
         _sb = new StringBuilder();
         _sb.append("UPDATE " + MSClient.table_prefix + "_dbpediaData DD ");
         _sb.append("INNER JOIN " + MSClient.table_prefix + "_dbpediaRawData RD ON RD.clean_name = DD.article ");
-        _sb.append("AND RD.property='<http://dbpedia.org/property/address>' ");
-        _sb.append("SET DD.address=RD.clean_value ");
+        _sb.append("AND RD.property = '<http://dbpedia.org/property/lon>' ");
+        _sb.append("SET DD.longitude=RD.clean_value ");
         _sb.append("");
         mysql.ExecuteQuery(_sb.toString());
+
 
         _sb = new StringBuilder();
         _sb.append("UPDATE " + MSClient.table_prefix + "_dbpediaData DD ");

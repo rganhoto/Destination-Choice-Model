@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.*;
 
 /**
  * Created by Rui on 24/05/2016.
@@ -27,6 +28,214 @@ public class WP_dbPediaCompare {
 
         //START READING VALUES
         // _cmp.Compare100Rows(mysql);
+
+    }
+
+    public static void CreateSampleData(MSClient mysql) throws SQLException {
+        WP_dbPediaCompare _cmp = new WP_dbPediaCompare();
+        _cmp.CreateTable(mysql);
+        int ID = _cmp.generateNewID(mysql);
+        _cmp.CreateMatchSampleData(mysql, ID);
+        _cmp.GenerateARFF(mysql, ID);
+    }
+
+    public static void CreateTestData(MSClient mysql, int Qty) throws SQLException {
+        WP_dbPediaCompare _cmp = new WP_dbPediaCompare();
+        _cmp.CreateTable(mysql);
+        int ID = _cmp.generateNewID(mysql);
+        _cmp.CreateMatchTestData(mysql, ID, Qty);
+        _cmp.GenerateARFF(mysql, ID);
+    }
+
+    private int generateNewID(MSClient mysql) throws SQLException {
+        String _startupID = mysql.getString("SELECT MAX(ID) FROM " + MSClient.table_prefix + "_Comparsion ");
+        try {
+            return (Integer.parseInt(_startupID) + 1);
+        } catch (Exception ex) {
+            return 1;
+        }
+    }
+
+    public boolean CreateMatchSampleData(MSClient mysql, int ID) throws SQLException {
+
+        boolean hasRows = false;
+
+        StringBuilder _sb = new StringBuilder();
+
+        _sb.append("SELECT D.article 'dbpedia_article', F.factual_id, F.name 'factual_name', D.name 'dbpedia_name', ");
+        _sb.append("F.website 'factual_website', D.website 'dbpedia_website', ");
+        _sb.append("F.latitude 'factual_latitude', F.longitude 'factual_longitude', ");
+        _sb.append("D.latitude 'dbpedia_latitude', D.longitude 'dbpedia_longitude' ");
+        _sb.append("FROM " + MSClient.table_prefix + "_factualcrosswalk C ");
+        _sb.append("INNER JOIN " + MSClient.table_prefix + "_dbpediaData D ON D.article=C.article ");
+        _sb.append("INNER JOIN " + MSClient.table_prefix + "_FactualData F ON F.factual_id = C.factual_id ");
+
+        ArrayList<String> _listFactual = new ArrayList<String>();
+        ArrayList<String> _listDBpedia = new ArrayList<String>();
+
+        ResultSet rs = mysql.getData(_sb.toString());
+        while (rs.next()) {
+            hasRows = true;
+            String _dbpediaName = rs.getString("dbpedia_name");
+            String _factualName = rs.getString("factual_name");
+
+            if (_dbpediaName == null || _dbpediaName.equals(""))
+                _dbpediaName = rs.getString("dbpedia_article");
+
+            if (IsValidComparsion(_factualName, rs.getString("factual_website"), _dbpediaName, rs.getString("dbpedia_website"))) {
+                eComparsion _compareName = Compare(_factualName, _dbpediaName);
+
+                eComparsion _compareWebsite = Compare(rs.getString("factual_website"), rs.getString("dbpedia_website"));
+
+                double dist = Distance(rs.getString("factual_latitude"), rs.getString("factual_longitude"),
+                        rs.getString("dbpedia_latitude"), rs.getString("dbpedia_longitude"));
+
+                //UpdateRow(mysql, rs.getString("factual_id"), rs.getString("dbpedia_article"), _compareName, _compareWebsite, dist);
+                InsertRow(mysql, ID, rs.getString("factual_id"), rs.getString("dbpedia_article"), _compareName, _compareWebsite, dist, true);
+            }
+
+            if (!_listFactual.contains(rs.getString("factual_id"))) {
+                _listFactual.add(rs.getString("factual_id"));
+                _listDBpedia.add(rs.getString("dbpedia_article"));
+            }
+        }
+        rs.close();
+
+        //TAMANHO DO DBPEDIA -1
+        String _data = mysql.getString("SELECT COUNT(*) FROM " + MSClient.table_prefix + "_dbpediaData");
+
+        int Tamanho = Integer.parseInt(_data) - 1;
+
+        Random r = new Random();
+
+        for (int i = 0; i < _listDBpedia.size(); i++) {
+
+
+            boolean isValid = false;
+
+            while (!isValid) {
+
+
+                _sb = new StringBuilder();
+
+                _sb.append("SELECT D.article 'dbpedia_article', F.factual_id, F.name 'factual_name', D.name 'dbpedia_name', ");
+                _sb.append("F.website 'factual_website', D.website 'dbpedia_website', ");
+                _sb.append("F.latitude 'factual_latitude', F.longitude 'factual_longitude', ");
+                _sb.append("D.latitude 'dbpedia_latitude', D.longitude 'dbpedia_longitude' ");
+                _sb.append("FROM " + MSClient.table_prefix + "_FactualData F ");
+                _sb.append("INNER JOIN " + MSClient.table_prefix + "_dbpediaData D ON D.article=(SELECT fx.article from " + MSClient.table_prefix + "_dbpediaData FX WHERE FX.article!=?  limit " + r.nextInt(Tamanho) + ",1) ");
+                _sb.append("WHERE F.factual_id = ? ");
+
+                PreparedStatement _stmt = mysql.PrepareStatement(_sb.toString());
+
+                int _index = 0;
+
+                MS_StatementHlp.SetString(_stmt, ++_index, _listDBpedia.get(i));
+                MS_StatementHlp.SetString(_stmt, ++_index, _listFactual.get(i));
+
+                rs = _stmt.executeQuery();
+
+                if (rs == null) {
+                    rs = _stmt.getResultSet();
+                }
+                if (rs == null)
+                    continue;
+
+                if (rs.first()) {
+                    hasRows = true;
+                    String _dbpediaName = rs.getString("dbpedia_name");
+                    String _factualName = rs.getString("factual_name");
+
+                    if (_dbpediaName == null || _dbpediaName.equals(""))
+                        _dbpediaName = rs.getString("dbpedia_article");
+
+                    //if (IsValidComparsion(_factualName, rs.getString("factual_website"), _dbpediaName, rs.getString("dbpedia_website"))) {
+                    isValid = true;
+                    eComparsion _compareName = Compare(_factualName, _dbpediaName);
+
+                    eComparsion _compareWebsite = Compare(rs.getString("factual_website"), rs.getString("dbpedia_website"));
+
+                    double dist = Distance(rs.getString("factual_latitude"), rs.getString("factual_longitude"),
+                            rs.getString("dbpedia_latitude"), rs.getString("dbpedia_longitude"));
+
+                    InsertRow(mysql, ID, rs.getString("factual_id"), rs.getString("dbpedia_article"), _compareName, _compareWebsite, dist, false);
+                    //}
+                }
+                rs.close();
+                _stmt.close();
+            }
+        }
+
+        return hasRows;
+    }
+
+
+    public boolean CreateMatchTestData(MSClient mysql, int ID, int Qty) throws SQLException {
+
+        boolean hasRows = false;
+
+        //TAMANHO DO DBPEDIA -1
+
+
+        StringBuilder _sb = new StringBuilder();
+
+        Random r = new Random();
+
+        _sb = new StringBuilder();
+        _sb.append("SELECT F.factual_id, F.name 'factual_name', ");
+        _sb.append("F.website 'factual_website', ");
+        _sb.append("F.latitude 'factual_latitude', F.longitude 'factual_longitude', SUBSTRING(F.name_soundex,1,3) 'SOUNDEX' ");
+        _sb.append("FROM " + MSClient.table_prefix + "_FactualData F ");
+        _sb.append("ORDER BY RAND() ");
+        _sb.append("LIMIT " + Integer.toString(Qty));
+
+        ResultSet rsFT = mysql.getData(_sb.toString());
+
+        System.out.println("START DBPEDIA");
+
+        while (rsFT.next()) {
+            hasRows = true;
+
+            String factualSoundex = rsFT.getString("SOUNDEX");
+
+            _sb = new StringBuilder();
+            _sb.append("SELECT D.article 'dbpedia_article', D.name 'dbpedia_name', ");
+            _sb.append("D.website 'dbpedia_website', ");
+            _sb.append("D.latitude 'dbpedia_latitude', D.longitude 'dbpedia_longitude' ");
+            _sb.append("FROM " + MSClient.table_prefix + "_dbpediaData D WHERE SUBSTRING(D.name_soundex,1,3)='" + factualSoundex + "' ");
+            _sb.append("ORDER BY RAND() ");
+            _sb.append("LIMIT 1 ");
+
+            ResultSet rsDB = mysql.getData(_sb.toString());
+
+            if (rsDB.first()) {
+
+                String _dbpediaName = rsDB.getString("dbpedia_name");
+                String _factualName = rsFT.getString("factual_name");
+
+                if (_dbpediaName == null || _dbpediaName.equals(""))
+                    _dbpediaName = rsDB.getString("dbpedia_article");
+
+                //if (IsValidComparsion(_factualName, rs.getString("factual_website"), _dbpediaName, rs.getString("dbpedia_website"))) {
+                eComparsion _compareName = Compare(_factualName, _dbpediaName);
+
+                eComparsion _compareWebsite = Compare(rsFT.getString("factual_website"), rsDB.getString("dbpedia_website"));
+
+                double dist = Distance(rsFT.getString("factual_latitude"), rsFT.getString("factual_longitude"),
+                        rsDB.getString("dbpedia_latitude"), rsDB.getString("dbpedia_longitude"));
+
+                InsertRow(mysql, ID, rsFT.getString("factual_id"), rsDB.getString("dbpedia_article"), _compareName, _compareWebsite, dist, false);
+                //}
+            }
+            rsDB.close();
+        }
+        rsFT.close();
+
+        return hasRows;
+    }
+
+
+    private void GenerateARFF(MSClient mysql, int ID) {
 
     }
 
@@ -51,6 +260,7 @@ public class WP_dbPediaCompare {
         if (!mysql.TableExists(MSClient.table_prefix + "_Comparsion")) {
             _sb = new StringBuilder();
             _sb.append("CREATE TABLE " + MSClient.table_prefix + "_Comparsion ( ");
+            _sb.append("ID INT NOT NULL, ");
             _sb.append("dbpedia_article VARCHAR(200) NOT NULL, ");
             _sb.append("factual_id VARCHAR(50) NOT NULL, ");
             _sb.append("name_jacard DECIMAL(15,10) NULL, ");
@@ -66,8 +276,9 @@ public class WP_dbPediaCompare {
             _sb.append("website_smithwaterman DECIMAL(15,10) NULL, ");
             _sb.append("website_unsmoothedjs DECIMAL(15,10) NULL, ");
             _sb.append("distance DECIMAL(15,10) NULL, ");
+            _sb.append("isMatch bool NULL, ");
             _sb.append("processed BIT NOT NULL, ");
-            _sb.append("PRIMARY KEY (dbpedia_article, factual_id)");
+            _sb.append("PRIMARY KEY (ID, dbpedia_article, factual_id)");
             _sb.append(")");
 
             mysql.ExecuteQuery(_sb.toString());
@@ -78,6 +289,7 @@ public class WP_dbPediaCompare {
     public void InitiateWork(MSClient mysql) throws SQLException {
 
 
+        int ID = generateNewID(mysql);
         //GET FACTUAL ID's
 
         String _lastFactualID = "";
@@ -107,7 +319,7 @@ public class WP_dbPediaCompare {
                 _lastFactualID = _rs.getString(1);
                 System.out.println(_lastFactualID);
                 _rs.close();
-                ReadMore = CompareRows(mysql, _lastFactualID);
+                ReadMore = CompareRows(mysql, _lastFactualID, ID);
             } else
                 _rs.close();
 
@@ -126,7 +338,7 @@ public class WP_dbPediaCompare {
     }
 
 
-    public boolean CompareRows(MSClient mysql, String FactualID) throws SQLException {
+    public boolean CompareRows(MSClient mysql, String FactualID, int ID) throws SQLException {
 
         boolean hasRows = false;
 
@@ -169,7 +381,7 @@ public class WP_dbPediaCompare {
 
 
                 //UpdateRow(mysql, rs.getString("factual_id"), rs.getString("dbpedia_article"), _compareName, _compareWebsite, dist);
-                InsertRow(mysql, rs.getString("factual_id"), rs.getString("dbpedia_article"), _compareName, _compareWebsite, dist);
+                InsertRow(mysql, ID, rs.getString("factual_id"), rs.getString("dbpedia_article"), _compareName, _compareWebsite, dist, false);
             }
 
 
@@ -281,11 +493,10 @@ public class WP_dbPediaCompare {
     }
 
 
-    public void InsertRow(MSClient mysql, String factual_id, String dbpedia_article, eComparsion CompareName, eComparsion CompareWebsite, double Distance) throws SQLException {
+    public void InsertRow(MSClient mysql, int ID, String factual_id, String dbpedia_article, eComparsion CompareName, eComparsion CompareWebsite, double Distance, boolean isMatch) throws SQLException {
 
         StringBuilder _sbValues = new StringBuilder();
         StringBuilder _sbFields = new StringBuilder();
-
 
         if (Distance != 9999) {
             _sbFields.append(", distance");
@@ -296,18 +507,22 @@ public class WP_dbPediaCompare {
             _sbFields.append(", name_jacard, name_jaro, name_levenstein, name_mongeelkan, name_smithwaterman, name_unsmoothedjs");
             _sbValues.append(", ?, ?, ?, ?, ?, ?");
         }
-//            _sb.append(", name_jacard=?, name_jaro=?, name_levenstein=?, name_mongeelkan=?, name_smithwaterman=?, name_unsmoothedjs=? ");
 
         if (CompareWebsite != null) {
             _sbFields.append(", website_jacard, website_jaro, website_levenstein, website_mongeelkan, website_smithwaterman, website_unsmoothedjs");
             _sbValues.append(", ?, ?, ?, ?, ?, ?");
         }
-        //_sb.append(", website_jacard=?, website_jaro=?, website_levenstein=?, website_mongeelkan=?, website_smithwaterman=?, website_unsmoothedjs=? ");
 
         StringBuilder _sb = new StringBuilder();
-        _sb.append("REPLACE INTO " + MSClient.table_prefix + "_Comparsion(factual_id, dbpedia_article, Processed ");
+        _sb.append("REPLACE INTO " + MSClient.table_prefix + "_Comparsion(Id, factual_id, dbpedia_article, Processed, IsMatch ");
         _sb.append(_sbFields.toString());
-        _sb.append(") VALUES (?,?,1 ");
+        _sb.append(") VALUES (?, ?,?,1 ");
+
+        if (isMatch)
+            _sb.append(", 1 ");
+        else
+            _sb.append(", 0 ");
+
         _sb.append(_sbValues.toString());
         _sb.append(")");
 
@@ -316,6 +531,7 @@ public class WP_dbPediaCompare {
 
         int _index = 0;
 
+        MS_StatementHlp.SetInt(_stmt, ++_index, ID);
         MS_StatementHlp.SetString(_stmt, ++_index, factual_id);
         MS_StatementHlp.SetString(_stmt, ++_index, dbpedia_article);
 
@@ -345,7 +561,6 @@ public class WP_dbPediaCompare {
         mysql.FinishStatement();
         _stmt.close();
     }
-
 
     private boolean IsValidComparsion(String factualName, String factualWS, String dbPediaName, String dbPediaWS) {
 
@@ -455,11 +670,11 @@ public class WP_dbPediaCompare {
         if (count >= 2) {
             //RETIRAR CENAS À ESQUERDA DO 1º PONTO
             int _iPonto = _LeftWebsite.indexOf(".");
-            _LeftWebsite = _LeftWebsite.substring(_iPonto+1);
+            _LeftWebsite = _LeftWebsite.substring(_iPonto + 1);
         }
 
-        if(_RightWebsite.endsWith("/"))
-            _RightWebsite = _RightWebsite.substring(0,_RightWebsite.length()-1);
+        if (_RightWebsite.endsWith("/"))
+            _RightWebsite = _RightWebsite.substring(0, _RightWebsite.length() - 1);
 
         return _LeftWebsite + _RightWebsite;
     }
